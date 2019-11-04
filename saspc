@@ -1,0 +1,55 @@
+#!/bin/csh -f
+# pp - prints out all or part of a UNIX dataset using PROC PRINT
+# The first argument is the dataset
+
+#export pgm_=saspc
+
+#set pgm="$0"
+set dataset = "$1"
+set tables = "$2"
+set condition = "$3"
+
+# Find the dataset file
+set pwd=`pwd`
+if (-f $dataset.sas7bdat == 1) then
+ set sasdir = "$pwd"
+else
+ echo "Dataset: $dataset.sas7bdat not found. Exiting ... "
+ exit
+endif
+
+# Begin constructing the SAS program in the temporary directory /tmp
+echo "%*include 'init.sas' ;" >! $SCR/artifacts/saspc_$$.sas
+echo "libname sasdata '$sasdir' ;" >> $SCR/artifacts/saspc_$$.sas
+
+# Continue constructing the program
+echo "options nodate nocenter nofmterr pagesize=74 linesize=150 ;" >> $SCR/artifacts/saspc_$$.sas
+echo "proc printto file='/Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/saspc_$$.lis' ;" >> $SCR/artifacts/saspc_$$.sas
+echo "title Contents of dataset: %nrbquote($dataset) from location %nrbquote ($sasdir) Date: &sysdate. Time: &systime.;" >> $SCR/artifacts/saspc_$$.sas
+
+echo "proc contents data=sasdata.$dataset;"  >> $SCR/artifacts/saspc_$$.sas
+echo "run;" >> $SCR/artifacts/saspc_$$.sas
+echo " " >> $SCR/artifacts/saspc_$$.sas
+echo "Running proc contents on dataset: $dataset ($sasdir)"
+
+# Run the program in the below  directory 
+cd /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts
+sas  saspc_$$.sas
+echo " " >>  $SCR/artifacts/saspc_$$.lis
+grep -i "sas stopped" $SCR/artifacts/saspc_$$.log
+test -f $SCR/artifacts/saspc_$$.lis;
+ set stat=$status
+if ($stat == 0) then
+ set lines = `head -10 $SCR/artifacts/saspc_$$.lis| wc -l `
+ if ($lines <= 2) then
+ echo No output .lst file was created.
+ more $SCR/artifacts/saspc_$$.log
+ else
+ emacs $SCR/artifacts/saspc_$$.lis 
+ endif
+else
+ echo No output .lst file was created.
+ more $SCR/artifacts/saspc_$$.log
+endif
+rm -rf /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/$pgm_$$.*
+exit 

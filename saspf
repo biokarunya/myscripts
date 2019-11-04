@@ -1,0 +1,57 @@
+#!/bin/csh -f
+# pp - prints out all or part of a UNIX dataset using PROC PRINT
+# The first argument is the dataset
+
+#set pgm="$0"
+set dataset = "$1"
+set tables = "$2"
+set condition = "$3"
+
+# Find the dataset file
+set pwd=`pwd`
+if (-f $dataset.sas7bdat == 1) then
+ set sasdir = "$pwd"
+else
+ echo "Dataset: $dataset.sas7bdat not found. Exiting ... "
+ exit
+endif
+
+# Begin constructing the SAS program in the temporary directory /tmp
+echo "%*include 'init.sas' ;" >! $SCR/artifacts/__$$.sas
+echo "libname sasdata '$sasdir' ;" >> $SCR/artifacts/__$$.sas
+
+# Continue constructing the program
+echo "options nodate nocenter nofmterr pagesize=74 linesize=150 ;" >> $SCR/artifacts/__$$.sas
+echo "proc printto file='/Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/__$$.lis' ;" >> $SCR/artifacts/__$$.sas
+echo "title1 Frequency of dataset: %nrbquote($dataset) from location %nrbquote ($sasdir) Date: &sysdate. Time: &systime.;" >> $SCR/artifacts/__$$.sas
+
+echo "proc freq data=sasdata.$dataset;"  >> $SCR/artifacts/__$$.sas
+echo " tables $tables;" >> $SCR/artifacts/__$$.sas
+if ("$3" != '') then
+echo " where $condition;" >> $SCR/artifacts/__$$.sas
+endif
+echo "run;" >> $SCR/artifacts/__$$.sas
+echo " " >> $SCR/artifacts/__$$.sas
+echo "Running proc freq on dataset: $dataset ($sasdir)"
+
+# Run the program in the below  directory 
+cd /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts
+sas  __$$.sas
+echo " " >>  $SCR/artifacts/__$$.lis
+grep -i "sas stopped" $SCR/artifacts/__$$.log
+test -f $SCR/artifacts/__$$.lis;
+ set stat=$status
+if ($stat == 0) then
+ set lines = `head -10 $SCR/artifacts/__$$.lis| wc -l `
+ if ($lines <= 2) then
+ echo No output .lst file was created.
+ more $SCR/artifacts/__$$.log
+ else
+ emacs $SCR/artifacts/__$$.lis 
+ endif
+else
+ echo No output .lst file was created.
+ more $SCR/artifacts/__$$.log
+endif
+rm -rf /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/__$$.*
+exit 

@@ -1,0 +1,81 @@
+#!/bin/csh -f
+# The first argument is the dataset
+
+#set pgm="$0"
+set dataset="$1"
+
+# The second argument is for setting condition to subset the data
+set _obs="$2"
+
+
+# The third arguement is for listing variable
+set _var="$3"
+
+
+# The fourth arguement is for where condition
+set condition="$4"
+
+
+# Find the dataset file
+set pwd=`pwd`
+if (-f $dataset.sas7bdat == 1) then
+ set sasdir = "$pwd"
+else
+ echo "Dataset: $dataset.sas7bdat not found. Exiting ... "
+ exit
+endif
+
+# Begin constructing the SAS program in the temporary directory /tmp
+echo "%*include 'init.sas' ;" >! $SCR/artifacts/__$$.sas
+echo "libname sasdata '$sasdir' ;" >> $SCR/artifacts/__$$.sas
+
+# Continue constructing the program
+echo "options nodate nocenter nofmterr pagesize=74 linesize=132 ;" >> $SCR/artifacts/__$$.sas
+echo "proc printto file='/Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/__$$.lis' ;" >> $SCR/artifacts/__$$.sas
+echo "title Printing dataset: %nrbquote($dataset) from location %nrbquote ($sasdir)  Date: &sysdate. Time: &systime.;" >> $SCR/artifacts/__$$.sas
+
+echo " " >> $SCR/artifacts/__$$.sas
+
+echo "proc print data= sasdata.$dataset" >> $SCR/artifacts/__$$.sas
+
+if ("$2" != '')then 
+	echo "(obs=$_obs)" >> $SCR/artifacts/__$$.sas
+endif
+
+echo ";" >> $SCR/artifacts/__$$.sas
+
+if ("$3" != '') then
+        echo "var $_var ;" >> $SCR/artifacts/__$$.sas
+endif
+
+if ("$4" != '') then
+	echo " where $condition;" >> $SCR/artifacts/__$$.sas
+endif
+
+
+
+echo "run;" >> $SCR/artifacts/__$$.sas
+echo " " >> $SCR/artifacts/__$$.sas
+
+echo "Running proc print on dataset: $dataset ($sasdir)"
+# Run the program in the below  directory 
+cd /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts
+sas  __$$.sas
+echo " " >>  $SCR/artifacts/__$$.lis
+grep -i "sas stopped" $SCR/artifacts/__$$.log
+test -f $SCR/artifacts/__$$.lis;
+ set stat=$status
+if ($stat == 0) then
+ set lines = `head -10 $SCR/artifacts/__$$.lis| wc -l `
+ if ($lines <= 2) then
+ echo No output .lst file was created.
+ more $SCR/artifacts/__$$.log
+ else
+ emacs $SCR/artifacts/__$$.lis 
+ endif
+else
+ echo No output .lst file was created.
+ more $SCR/artifacts/__$$.log
+endif
+rm -rf /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/__$$.*
+exit 

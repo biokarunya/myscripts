@@ -1,0 +1,64 @@
+#!/bin/csh -f
+
+# The first argument is the variable
+
+#export pgm_=sasfv
+
+#set pgm="$0"
+set vari = "$1"
+
+
+# Find the dataset file
+set pwd=`pwd`
+set sasdir = "$pwd"
+
+# Begin constructing the SAS program in the temporary directory
+
+echo "libname sasdata '$sasdir' ;" >> $SCR/artifacts/sasfv_$$.sas
+
+# Continue constructing the program
+echo "options nodate nocenter nofmterr pagesize=74 linesize=150 ;" >> $SCR/artifacts/sasfv_$$.sas
+echo "proc printto file='/Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/sasfv_$$.lis' ;" >> $SCR/artifacts/sasfv_$$.sas
+echo "title Variable  %nrbquote($vari) present in below datasets in the location %nrbquote ($sasdir) Date: &sysdate. Time: &systime.;" >> $SCR/artifacts/sasfv_$$.sas
+
+echo "proc sql;"  >> $SCR/artifacts/sasfv_$$.sas
+echo "create table result as select a.memname, b.crdate from dictionary.columns a, dictionary.tables b" >> $SCR/artifacts/sasfv_$$.sas
+echo "where a.libname=b.libname and a.memname=b.memname and upcase(a.libname)='SASDATA' and upcase(a.name)='$vari'" >> $SCR/artifacts/sasfv_$$.sas
+echo "order by b.crdate desc;"  >> $SCR/artifacts/sasfv_$$.sas
+echo "run;" >> $SCR/artifacts/sasfv_$$.sas
+
+echo " data _null_;" 													>> $SCR/artifacts/sasfv_$$.sas
+echo " file print;" 													>> $SCR/artifacts/sasfv_$$.sas
+echo " set result;"														>> $SCR/artifacts/sasfv_$$.sas
+echo " if (_n_=1) then put /" 											>> $SCR/artifacts/sasfv_$$.sas
+echo " @01 'Dataset Name                               Date Created'/"  >> $SCR/artifacts/sasfv_$$.sas
+echo " @01 '-----------------------------------------------------';"    >> $SCR/artifacts/sasfv_$$.sas
+echo "  dt=datepart(crdate);" 											>> $SCR/artifacts/sasfv_$$.sas
+echo "  tm=timepart(crdate);" 											>> $SCR/artifacts/sasfv_$$.sas
+echo " put @01 memname @35 dt mmddyy10. +1 tm time.;" 					>> $SCR/artifacts/sasfv_$$.sas
+echo "run;" 															>> $SCR/artifacts/sasfv_$$.sas
+
+echo " " 																>> $SCR/artifacts/sasfv_$$.sas
+echo "Running search on datasets in location ($sasdir)"
+
+# Run the program in the below  directory 
+cd /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts
+sas  sasfv_$$.sas
+echo " " >>  $SCR/artifacts/sasfv_$$.lis
+grep -i "sas stopped" $SCR/artifacts/sasfv_$$.log
+test -f $SCR/artifacts/sasfv_$$.lis;
+ set stat=$status
+if ($stat == 0) then
+ set lines = `head -10 $SCR/artifacts/sasfv_$$.lis| wc -l `
+ if ($lines <= 2) then
+ echo No output .lst file was created.
+ more $SCR/artifacts/sasfv_$$.log
+ else
+ emacs $SCR/artifacts/sasfv_$$.lis 
+ endif
+else
+ echo No output .lst file was created.
+ more $SCR/artifacts/sasfv_$$.log
+endif
+rm -rf /Volumes/app/cdars/prod/sites/train/prjB420/b420_nlk/myscript/artifacts/$sasfv_$$.*
+exit 
